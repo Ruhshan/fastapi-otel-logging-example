@@ -117,7 +117,7 @@ Clean, structured — but no trace context yet.
 We need three packages:
 
 ```bash
-pip install opentelemetry-api opentelemetry-sdk opentelemetry-instrumentation-fastapi
+pip install opentelemetry-api opentelemetry-sdk opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-httpx
 ```
 
 Note: we are **not** installing `opentelemetry-instrumentation-logging`. You'll see why in the gotchas section.
@@ -307,7 +307,29 @@ Using `httpx.AsyncClient` (not `requests`) is critical. Since the call is `async
 
 ---
 
-## Step 9: Test with the `traceparent` Header
+## Step 9: Propagate Trace Context to Outbound Requests
+
+At this point, our service receives `traceparent` from upstream and attaches it to logs — but it doesn't forward it to the Open-Meteo call. The downstream service has no way to join the same trace.
+
+Fix this with `HTTPXClientInstrumentor`, which patches all `httpx` clients globally to inject the active span's `traceparent` header on every outgoing request:
+
+```python
+# app/main.py
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+# 4. Instrument FastAPI and httpx (must be after TracerProvider is set)
+FastAPIInstrumentor.instrument_app(app)
+HTTPXClientInstrumentor().instrument()
+```
+
+No changes are needed in `weather_service.py`. The instrumentor hooks into httpx's transport layer and reads the active span from `contextvars` at request time — the same context that was propagated from the inbound `traceparent`.
+
+To verify, check the downstream server's logs. They'll show the same `trace_id` that your service received from its caller, forming an unbroken chain across all three hops.
+
+---
+
+## Step 10: Test with the `traceparent` Header
 
 In a real system, an upstream service sends the `traceparent` header so all downstream logs share the same `trace_id`. Let's simulate that:
 
@@ -377,5 +399,6 @@ The complete setup is:
 3. **`TracerProvider`** + **`TraceContextTextMapPropagator`** for W3C `traceparent` header propagation
 4. **`FastAPIInstrumentor`** to auto-create spans per request
 5. **`@tracer.start_as_current_span`** on service methods for finer-grained tracing
+6. **`HTTPXClientInstrumentor`** to forward the active trace context to all outbound httpx requests
 
 The full working example is available in the [sample project](https://github.com/your-repo/fastapi-otel-logging-example).

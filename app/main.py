@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
@@ -20,5 +21,6 @@ set_global_textmap(TraceContextTextMapPropagator())
 app = FastAPI(title="FastAPI OTel Logging Example")
 app.include_router(weather.router)
 
-# 4. Instrument FastAPI (must be after TracerProvider is set)
+# 4. Instrument FastAPI and httpx (must be after TracerProvider is set)
 FastAPIInstrumentor.instrument_app(app)
+HTTPXClientInstrumentor().instrument()

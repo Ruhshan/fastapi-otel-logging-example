@@ -6,7 +6,8 @@ from opentelemetry import trace
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
-OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+#OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+OPEN_METEO_URL = "http://localhost:8088/v1/forecast"
 
 
 class WeatherService:
